@@ -1,8 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 spacy
 scikit-learn
 scipy
 pandas
 numpy
+joblib
+matplotlib
