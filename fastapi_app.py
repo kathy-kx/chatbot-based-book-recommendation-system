@@ -9,6 +9,7 @@ Features:
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import pandas as pd
@@ -20,8 +21,26 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
+# Load .env for local development (no-op if file doesn't exist or dotenv not installed)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Import cosine similarity recommendation function
 from B_cosine_similarity import recommend_books as _b_recommend_books
+
+# ============ Groq LLM (optional — graceful fallback if key not set) ============
+_groq_client = None
+_GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if _GROQ_API_KEY:
+    try:
+        from groq import Groq
+        _groq_client = Groq(api_key=_GROQ_API_KEY)
+        print("Groq LLM enabled")
+    except ImportError:
+        print("groq package not installed — LLM disabled, using formatted responses")
 
 # ============ Load Data ============
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -273,6 +292,14 @@ app = FastAPI(
     version="1.0"
 )
 
+# Allow browser requests from GitHub Pages and any other origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def root():
     return {"message": "Book Recommendation API", "genres": ALL_GENRES}
@@ -356,6 +383,47 @@ def reset_session(session_id: str):
     _session_store.pop(session_id, None)
     return {"message": f"Session '{session_id}' cleared."}
 
+def _llm_generate(user_message: str, recs: list, memory_note: str, intent: str) -> Optional[str]:
+    """
+    Call Groq LLM to generate a natural response grounded in retrieved books.
+    Returns None if LLM is unavailable — caller falls back to formatted string.
+    """
+    if _groq_client is None or not recs:
+        return None
+    try:
+        book_lines = "\n".join(
+            f"- {r['Title']} by {r['Authors']} "
+            f"[{r['keyword_category']}] (similarity: {r['similarity_score']:.2f})"
+            for r in recs
+        )
+        system_prompt = (
+            "You are a helpful book recommendation assistant. "
+            "Your responses are grounded strictly in the retrieved books provided. "
+            "Do NOT mention or invent any books not in the list. "
+            "Be friendly, concise, and explain briefly why each book fits the request."
+        )
+        user_prompt = (
+            f"The user said: \"{user_message}\"\n\n"
+            f"Retrieved books from database:\n{book_lines}\n\n"
+            "Write a short, natural recommendation response (max 4 sentences intro, "
+            "then list the books with a one-line reason each)."
+        )
+        response = _groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_prompt},
+            ],
+            max_tokens=512,
+            temperature=0.7,
+        )
+        text = response.choices[0].message.content.strip()
+        return memory_note + text
+    except Exception as e:
+        print(f"LLM generation failed: {e}")
+        return None  # fallback to formatted string
+
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     """
@@ -420,8 +488,15 @@ def chat(request: ChatRequest):
         ]
         lines = [f"{i+1}. {r.Title} — {r.Authors} [{r.keyword_category}]"
                  for i, r in enumerate(recs)]
+        fallback_output = memory_note + header + "\n\n" + "\n".join(lines)
+
+        # Try LLM generation; fall back to formatted string if unavailable
+        llm_output = _llm_generate(
+            request.message, [r.model_dump() for r in recs], memory_note, intent
+        )
+
         return {
-            "output": memory_note + header + "\n\n" + "\n".join(lines),
+            "output": llm_output if llm_output else fallback_output,
             "recommendations": [r.model_dump() for r in recs],
             "detected_preferences": prefs.to_dict(),
             "session_memory": _session_store.get(request.session_id, {}),

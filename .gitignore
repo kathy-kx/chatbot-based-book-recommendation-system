@@ -6,3 +6,7 @@ __pycache__/
 requirement.md
 N8N_SETUP.md
 B_newnew.ipynb
+chat.html
+
+# Environment variables — never commit the real key
+.env
