@@ -1,1 +1,8 @@
 .DS_Store
+/.venv
+__pycache__/
+
+/.venv311
+requirement.md
+N8N_SETUP.md
+B_newnew.ipynb
