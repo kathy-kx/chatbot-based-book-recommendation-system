@@ -55,7 +55,10 @@ JSON response → N8N → User
 │
 ├── requirements.txt             # Python dependencies
 ├── .env.example                 # Environment variable template
-└── User_Guide.md                # Detailed setup and usage instructions
+├── User_Guide.md                # Detailed setup and usage instructions
+│
+├── test_cases.md                # Competency questions (designed in assignment 4, for reference) and test cases
+└── test_fastapi.py              # Unit and integration tests for Chatbot-Based Book Recommendation System
 ```
 
 > **Jupyter Notebooks:** `Classification.ipynb` and `clustering/Clustering.ipynb` can be run in [Google Colab](https://colab.research.google.com/). Upload the notebook and the required CSV/NPZ/csv data files, then run all cells. No local Python environment needed.
@@ -125,3 +128,37 @@ Routing based on the Competency Questions designed in Assignment 4:
 ### 4. RAG with Graceful Fallback
 - With `GROQ_API_KEY`: retrieved books are passed to Llama 3.3 70B for natural language response
 - Without key: system returns a clean formatted list — fully functional either way
+
+---
+
+## Unit Testing
+
+The test suite (`test_fastapi.py`) covers all three layers of the system with **70 tests**.
+
+### Test structure
+
+| Section | Scope | Tests |
+|---------|-------|-------|
+| `TestExtractGenreMentions` | `spacy_ner` — genre alias mapping, sentiment window | 8 |
+| `TestExtractReadingLevel` | `spacy_ner` — reading level keyword detection | 5 |
+| `TestParseUserInput` | `spacy_ner` — full preference parsing | 4 |
+| `TestMergeWithSessionMemory` | `spacy_ner` — cross-turn memory accumulation and conflict resolution | 4 |
+| `TestDetectIntent` | `fastapi_app` — CQ1–CQ6 routing + priority ordering | 11 |
+| `TestApplyPreferenceFiltering` | `fastapi_app` — genre exclusion and score boosting | 4 |
+| `TestRecommendByAuthor` | `fastapi_app` — fuzzy author lookup | 4 |
+| `TestRecommendPopular` | `fastapi_app` — popularity ranking and genre filter | 4 |
+| `TestRecommendBeginner` | `fastapi_app` — description-length proxy for difficulty | 3 |
+| `TestAPIEndpoints` | FastAPI integration — all endpoints, session memory, response schema | 23 |
+
+One test (`test_chat_cq3_short`) documents the single remaining limitation: the bare `[Author Name] books?` pattern (e.g., "Frank Herbert books?") triggers no signal keyword and falls back to `general_search`. This is the one unresolved edge case from the 30-query benchmark (29/30 = 96.7%).
+
+### How to run
+
+```bash
+# Activate the virtual environment, then:
+source .venv/bin/activate
+pip install pytest httpx          # one-time, if not already installed
+pytest test_fastapi.py -v
+```
+
+Expected output: **70 passed** in ~20 s.

@@ -219,13 +219,17 @@ GENRE_SEED_QUERIES = {
 }
 
 POPULAR_SIGNALS  = ["popular", "highly rated", "well-reviewed", "best", "top rated",
-                    "top books", "well rated", "most read", "highest rated", "trending"]
-SIMILAR_SIGNALS  = ["similar to", "books like", "like the book", "just like",
+                    "top books", "well rated", "most read", "highest rated", "highest-rated",
+                    "trending"]
+SIMILAR_SIGNALS  = ["similar to", "simlar to", "books like", "like the book", "just like",
                     "something like", "what else is like", "else like", "like it",
-                    "could you suggest books similar", "suggest.*similar"]
-AUTHOR_SIGNALS   = ["by ", "written by", "books by", "author", "'s books", "s books"]
+                    "could you suggest books similar", "suggest.*similar",
+                    "comparable to", "comparable"]
+AUTHOR_SIGNALS   = ["by ", "written by", "books by", "author", "'s books", "s books",
+                    "has written", "what has", "written"]
 BEGINNER_SIGNALS = ["beginner", "easy", "simple", "light read", "introductory",
-                    "entry level", "entry-level", "for beginners", "starting out"]
+                    "intro-level", "entry level", "entry-level", "for beginners",
+                    "starting out", "starter", "new to"]
 
 # Regex patterns to extract reference book titles from similar queries
 import re as _re
