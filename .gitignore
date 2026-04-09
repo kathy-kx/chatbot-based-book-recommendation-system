@@ -10,3 +10,7 @@ chat.html
 
 # Environment variables — never commit the real key
 .env
+
+report_sections_C.md
+figures/
+generate_report_figures.py

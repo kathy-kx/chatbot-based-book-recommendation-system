@@ -5,7 +5,7 @@ Chatbot & System Integration
 Features:
 - Cosine Similarity recommendation
 - User preference parameters (preferred_genres, disliked_genres, reading_level)
-- Based on TF-IDF features and recommendation logic implemented in B_cosine_similarity.py
+- Based on TF-IDF features and recommendation logic implemented in cosine_similarity.py
 """
 
 from fastapi import FastAPI, HTTPException
@@ -29,7 +29,7 @@ except ImportError:
     pass
 
 # Import cosine similarity recommendation function
-from B_cosine_similarity import recommend_books as _b_recommend_books
+from cosine_similarity import recommend_books as _recommend_books
 
 # ============ Groq LLM (optional — graceful fallback if key not set) ============
 _groq_client = None
@@ -104,10 +104,10 @@ def get_book_index(title: str) -> Optional[int]:
 def recommend_books_cosine(title: str, top_n: int = 5) -> List[tuple]:
     """
     Cosine Similarity recommendation based on book title.
-    Delegates to B_cosine_similarity.recommend_books(), returns: List[(book_row, similarity_score)]
+    Delegates to cosine_similarity.recommend_books(), returns: List[(book_row, similarity_score)]
     """
-    result = _b_recommend_books(title, top_n)
-    if isinstance(result, str):  # B returns string if title not found
+    result = _recommend_books(title, top_n)
+    if isinstance(result, str):  # returns string if title not found
         return []
     return [(row, round(float(row["similarity_score"]), 4)) for _, row in result.iterrows()]
 
