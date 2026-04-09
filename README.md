@@ -2,128 +2,126 @@
 
 ## Project Overview
 
-A Conversational Recommender System (CRS) that provides personalized book recommendations through natural language interaction. The system uses **TF-IDF cosine similarity** for content-based recommendations and maintains **user memory** across conversation turns.
+A Conversational Recommender System (CRS) that provides personalized book recommendations through natural language interaction. The system uses **TF-IDF cosine similarity** for content-based recommendations and maintains **user preference memory** across conversation turns.
 
 **Key Technologies:**
-- **FastAPI** — REST API serving recommendation engine
+- **FastAPI** — REST API serving the recommendation engine
 - **SpaCy** — Named Entity Recognition for preference extraction
-- **N8N** — Chatbot orchestration with Docker (self-hosted)
+- **N8N** — Chatbot orchestration (self-hosted via Docker, or N8N Cloud)
 - **Scikit-learn** — TF-IDF vectorization and cosine similarity
-- **data** — Books with clusters dataset
-- **classification** — Genre classification models
+- **Groq API** — Optional LLM response generation (Llama 3.3 70B); system runs fully without it
 
 ---
 
 ## Architecture
 
 ```
-User → N8N Chatbot → FastAPI /chat endpoint → Recommendation Engine
-                ↑                                    ↓
-                └── Session Memory ←───────────────┘
+User
+  │
+  ▼
+N8N Chat Interface
+  │  POST /chat
+  ▼
+FastAPI /chat
+  ├── spacy_ner.py       ← preference extraction + session memory merge
+  ├── detect_intent()    ← route to one of 6 handlers
+  ├── cosine_similarity.py  ← similar books + general search
+  ├── genre pool + TF-IDF ranking  ← genre/preference queries
+  ├── author / popularity / beginner filters  
+  └── Groq LLM (optional) ← natural language response generation
+  │
+  ▼
+JSON response → N8N → User
 ```
 
-**Data Flow:**
-1. User sends message (e.g., "I like sci-fi books")
-2. N8N forwards to FastAPI `/chat`
-3. FastAPI parses preferences via SpaCy NER
-4. FastAPI queries cosine similarity engine
-5. Preferences stored in session memory
-6. Results returned through N8N to user
+**Session memory** is maintained server-side in an in-memory dict keyed by `session_id`. Preferences (liked/disliked genres, authors, reading level) accumulate across turns and are used for filtering and boosting in every subsequent query.
 
 ---
 
 ## Project Structure
 
 ```
-├── books_with_clusters.csv          # book dataset with genre/cluster labels
-├── tfidf_matrix.npz                 # TF-IDF sparse matrix
-├── tfidf_vectorizer.pkl             # fitted TF-IDF vectorizer
-├── Books.csv                        # Goodreads ratings (for popularity ranking)
+├── fastapi_app.py               # FastAPI server - intent detection, session memory, all CQ handlers
+├── cosine_similarity.py         # Cosine similarity recommender (loaded by fastapi_app.py)
+├── spacy_ner.py                 # SpaCy NER — preference extraction and session memory merge
 │
-├── B_cosine_similarity.py           # classification + cosine similarity
+├── books_with_clusters.csv      # 1,985 books with genre labels and cluster assignments
+├── tfidf_matrix.npz             # Pre-computed TF-IDF sparse matrix (1985 × 5000)
+├── tfidf_vectorizer.pkl         # Fitted TF-IDF vectorizer
+├── Books.csv                    # Goodreads ratings data (for popularity ranking)
 │
-├── fastapi_app.py                   #  FastAPI server with session memory
-├── spacy_ner.py                     # SpaCy NER preference extraction
+├── Classification.ipynb         # Genre classification models (BoW/TF-IDF/LDA/Word2Vec + LR/RF/SVM)
+├── workflow.json                # N8N exported workflow
 │
-├── requirements.txt                 # Python dependencies
-├── User_Guide.md                   # Detailed user manual 
-└── workflow.json                   # N8N exported workflow
+├── requirements.txt             # Python dependencies
+├── .env.example                 # Environment variable template
+└── User_Guide.md                # Detailed setup and usage instructions
 ```
 
----
-
-## Key Features
-
-### 1. Content-Based Recommendation
-- TF-IDF vectors represent book descriptions
-- Cosine similarity measures semantic closeness
-- Cluster-based boosting improves relevance
-
-### 2. Intent Detection
-Six competency question types:
-- CQ1: Genre-based recommendation
-- CQ2: Similar books ("similar to Dune")
-- CQ3: Author search ("books by King")
-- CQ4: Beginner-friendly books
-- CQ5: Popular/highly-rated books
-- CQ6: Personalized preference-based
-
-### 3. User Memory & Preference Modelling
-- Extracts preferences from natural language
-- Session memory persists across turns
-- Genre alias mapping (sci-fi → scientific)
-- Preference conflict resolution
-
-### 4. N8N Integration
-- Self-hosted via Docker
-- HTTP Request tool calls FastAPI
-- Session memory node for persistence
+> **Jupyter Notebooks:** `Classification.ipynb` and `clustering/Clustering.ipynb` can be run in [Google Colab](https://colab.research.google.com/). Upload the notebook and the required CSV/NPZ/csv data files, then run all cells. No local Python environment needed.
 
 ---
 
-## Quick Start
+## Two Ways to Run
+
+### Option 1 — Cloud (N8N Cloud + Render)
+
+A live demo is deployed and accessible without any local setup:
+
+- **Chat interface:** hosted on N8N Cloud. [Try Our Live chatbot](https://kathy-kx.app.n8n.cloud/workflow/ps1bfjRpaJ3OWZUg/621d3b?projectId=ivnuR5X22yOOs7ij&uiContext=workflow_list)
+- **Backend API:** deployed on [Render](https://chatbot-based-book-recommendation-system.onrender.com/chat) 
+
+> **Note:** The Render free tier spins down after inactivity. The **first request after a period of idle may take 30–60 seconds** while the server cold-starts. Subsequent requests are fast.
+
+The system is fully configured. All required environment variables (including LLM API keys) are securely managed on the backend, so users can immediately interact with the chatbot and receive generated responses without any setup.
+
+
+### Option 2 — Local (Docker N8N + local FastAPI)
 
 ```bash
-# 1. Install dependencies
+# 1. Install Python dependencies
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
 # 2. Start FastAPI
 uvicorn fastapi_app:app --reload --port 8000 --host 0.0.0.0
 
-# 3. Start N8N Docker
+# 3. Start N8N via Docker
 docker run -d --name n8n -p 5678:5678 -v n8n_data:/home/node/.n8n n8nio/n8n
 
-# 4. Open http://localhost:5678, import workflow.json
+# 4. Open http://localhost:5678, import workflow.json, start chatting
 ```
 
-For detailed instructions, see **[User_Guide.md](./User_Guide.md)**.
+See **[User_Guide.md](./User_Guide.md)** for detailed steps.
+
 
 ---
 
-## Innovation: Dynamic User Persona
+## Key Features
 
-Unlike static recommenders, this system maintains a **dynamic user persona** across turns:
+### 1. Content-Based Recommendation
+- TF-IDF vectors represent book descriptions (ngram 1–2, 5,000 features)
+- Cosine similarity scores semantic closeness between descriptions
+- Genre seed queries rank results within genre pools for relevance
 
-```json
-{
-  "preferred_genres": ["scientific", "fiction"],
-  "disliked_genres": ["romantic"],
-  "reading_level": "beginner",
-  "past_feedback": [
-    {"book": "Dune", "liked": true},
-    {"book": "Foundation", "liked": false}
-  ]
-}
-```
+### 2. Intent Detection — 6 Query Types
+Routing based on the Competency Questions designed in Assignment 4:
 
-Preferences accumulate and refine throughout the conversation, enabling truly personalized recommendations.
+| Intent | Example |
+|--------|---------|
+| Genre recommendation (CQ1) | "Show me sci-fi books" |
+| Similar books (CQ2) | "Books similar to Dune" |
+| Author search (CQ3) | "Books by Stephen King" |
+| Beginner-friendly (CQ4) | "Easy reads for beginners" |
+| Popular / highly rated (CQ5) | "What are the best rated books?" |
+| Preference-based (CQ6) | "I like history, what should I read?" |
 
----
+### 3. User Memory & Personalisation
+- SpaCy NER extracts genres, authors, and reading level from natural language
+- Per-mention sentiment window handles mixed sentences ("I like sci-fi but not romance")
+- Session memory persists preferences across turns (no database or API key required)
+- Disliked genres are hard-excluded; liked genres receive a ×2 score boost
 
-## Limitations & Future Work
-
-- **Collaborative filtering**: Currently content-based only (no SVD/KNN/NMF due to model serialization constraints)
-- **Genre granularity**: Database has broad categories; user "mystery" maps to "fiction"
-- **Cold start**: New users without expressed preferences fall back to general search
-- **Database**: SQLite/PostgreSQL not implemented (flat CSV used)
+### 4. RAG with Graceful Fallback
+- With `GROQ_API_KEY`: retrieved books are passed to Llama 3.3 70B for natural language response
+- Without key: system returns a clean formatted list — fully functional either way
